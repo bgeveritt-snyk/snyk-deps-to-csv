@@ -1,6 +1,12 @@
 # snyk-deps-to-csv
 
-collects all dependencies from all orgs in a group and outputs to a CSV file `snyk-deps_<timestamp>.csv`, see an example [here](sample-output/snyk-deps_2022_01_05_05_40_39_59.csv).
+Collects all dependencies from either:
+
+* All orgs in a group
+* A specific org
+* A specific repo/target (ex: my-scm-org/repo)
+
+and outputs the dependencies to a CSV file `snyk-deps_<timestamp>.csv`, see an example [here](sample-output/snyk-deps_2022_01_05_05_40_39_59.csv).
 
 > To process all Snyk orgs in a group, ensure your token has group level permission.  If the token in use only has access to specific orgs in the group, only the data from those orgs will be retrieved.
 
@@ -14,6 +20,18 @@ build with `npm run build`
 ### Get all dependencies from all orgs in the specified group
 ```
 node dist/index.js --token=$SNYK_TOKEN --group-id=$SNYK_GROUP
+```
+
+### Filter by a specific org
+```
+node dist/index.js --token=$SNYK_TOKEN --group-id=$SNYK_GROUP \
+     --org-id=$SNYK_ORG"
+```
+
+### Filter by a specific org and repo/target
+```
+node dist/index.js --token=$SNYK_TOKEN --group-id=$SNYK_GROUP \
+     --org-id=$SNYK_ORG" --target=foo/bar
 ```
 
 ### Filter by 1 or more dependencies from all orgs in the specified group
