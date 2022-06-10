@@ -51,6 +51,16 @@ const argv = yargs
                        if not specified, then taken from SNYK_GROUP`,
       demandOption: true,
     },
+    'org-id': {
+      describe: `the id of the org to process 
+                       if not specified, then all orgs are processed`,
+      demandOption: false,
+    },
+    'target': {
+      describe: `name of the target/repo to retrieve dependencies 
+                       if not specified, then all targets`,
+      demandOption: false,
+    },
     'dependency-list': {
       describe: `comma-delimited list of dependencies to filter results for 
                        if not specified, then all dependencies are retrieved`,
@@ -61,6 +71,8 @@ const argv = yargs
 
 const token = argv['token']
 const groupId = argv['group-id']
+const orgId = argv['org-id']
+const target = argv['target']
 const dependencyList = argv['dependency-list']
 
 
@@ -109,9 +121,14 @@ async function processQueue(queue: any[], ) {
 
             for (const dep of totalDeps) {
                 //debug(`dep: ${JSON.stringify(dep)}`)
+                let license = ""
+                if (dep.licenses.length != 0) {
+                  license = dep.licenses.map((_: { license: string; }) => _.license).join(', ');
+                }
+
                 for (const project of dep.projects) {
                     let projectUrl = `https://app.snyk.io/org/${url.orgSlug}/project/${project.id}` 
-                    writeToCSV(`${url.orgSlug},${url.orgId},${dep.id?.replace(',',';')},${dep.name},${dep.version?.replace(',',';')},${project.name},${project.id},${projectUrl}`)
+                    writeToCSV(`${url.orgSlug},${url.orgId},${dep.id?.replace(',',';')},${dep.name},${dep.version?.replace(',',';')},${license},${project.name.slice(0, project.name.indexOf(':'))},${project.name},${project.id},${projectUrl}`)
                 }
                 
             }
@@ -160,53 +177,93 @@ async function getMoreDepsPages(baseURL: string, filterBody: any, additionalPage
 }
 
 async function getSnykOrgs () {
-    let orgs: any = []
+  let orgs: any = []
 
-    try {
-        let response = await requestManager.request({
-            verb: 'GET',
-            url: `/orgs`,
-          });
-        orgs = response.data.orgs
-        orgs = orgs.filter(function (el: any)
-        {
-          return el.group && el.group.id == groupId ;
-        }
-        );
-        
-        debug(`orgs: ${JSON.stringify(orgs)}`)
-      } catch (err: any) {
-        console.log(err);
+  try {
+      let response = await requestManager.request({
+          verb: 'GET',
+          url: `/orgs`,
+        });
+      orgs = response.data.orgs
+      orgs = orgs.filter(function (el: any)
+      {
+        return el.group && el.group.id == groupId ;
       }
+      );
+      
+      debug(`orgs: ${JSON.stringify(orgs)}`)
+    } catch (err: any) {
+      console.log(err);
+    }
+
+    // if org-id is supplied, filter for only that org
+    if (orgId) {
+      orgs = orgs.filter(function (el: any)
+      {
+        return el.id == orgId ;
+      }
+      );
+    }
+  
+    return orgs
+}
+
+async function getSnykProjects (orgId: string) {
+  let projects: any = []
+
+  try {
+      let response = await requestManager.request({
+          verb: 'POST',
+          url: `/org/${orgId}/projects`,
+          body: `{"filters": {"name": "${target}"}}`
+        });
+        projects = response.data.projects
+      debug(`projects: ${JSON.stringify(projects)}`)
+    } catch (err: any) {
+      console.log(err);
+    }
     
-      return orgs
+    return projects
 }
 
 async function app() {
     debug(`token: ${token}`)
     debug(`groupId: ${groupId}`)
+    debug(`orgId: ${orgId}`)
 
-    let filterBody = {}
-
+    // exit if dependency list cannot be parsed correctly
     if (dependencyList) { 
       debug(`dependencyList: ${dependencyList}`)
       try {
-        filterBody = {"filters": {"dependencies": String(dependencyList).split(',')}}
+        String(dependencyList).split(',')
       }
       catch(err: any) {
         console.log(`error parsing dependency-list, exiting...`)
         exit(1)
       }
       console.log(`filtering dependencies for ${JSON.stringify(String(dependencyList).split(','), null, 2)}\n`)
-
     }
-    writeToCSV(`org-slug,org-id,dep-id,dep-name,dep-version,project-name,project-id,project-url`)
+
+    let filterBody = {"filters": { "dependencies": (dependencyList) ? String(dependencyList).split(',') : "", "projects": "" } }
+    
+    writeToCSV(`org-slug,org-id,dep-id,dep-name,dep-version,license,target,project-name,project-id,project-url`)
     let queue = [];
+
     // get all the orgs for the snyk group
     const orgs = await getSnykOrgs();
     debug(`orgs: ${orgs}`)
+    
     for (const org of orgs) {
         debug(`org.id: ${org.id}`)
+
+        // if target is supplied, only get projects that match
+        if (target) {
+          const projects = await getSnykProjects(org.id);
+          if (projects.length > 0) {
+            filterBody.filters.projects = projects.map((x: { id: any; }) => x.id)
+          }
+        }
+
         queue.push({
             verb: 'POST',
             url: `/org/${org.id}/dependencies?perPage=1000`,
