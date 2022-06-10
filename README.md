@@ -6,7 +6,7 @@ Collects all dependencies from either:
 * A specific org
 * A specific repo/target (ex: my-scm-org/repo)
 
-and outputs the dependencies to a CSV file `snyk-deps_<timestamp>.csv`, see an example [here](sample-output/snyk-deps_2022_01_05_05_40_39_59.csv).
+and outputs the dependencies to a CSV file `snyk-deps_<timestamp>.csv`, see an example [here](sample-output/snyk-deps_2022_06_10_03_09_39_59.csv).
 
 > To process all Snyk orgs in a group, ensure your token has group level permission.  If the token in use only has access to specific orgs in the group, only the data from those orgs will be retrieved.
 
